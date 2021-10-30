@@ -12,6 +12,8 @@
 #define DETOURS_INTERNAL
 #include "detours.h"
 
+#include <new.h>
+
 #if DETOURS_VERSION != 0x4c0c1   // 0xMAJORcMINORcPATCH
 #error detours.h version mismatch
 #endif
@@ -1628,7 +1630,7 @@ LONG WINAPI DetourTransactionAbort()
         }
 
         DetourOperation *n = o->pNext;
-        delete o;
+        DetourFree(o);
         o = n;
     }
     s_pPendingOperations = NULL;
@@ -1642,7 +1644,7 @@ LONG WINAPI DetourTransactionAbort()
         ResumeThread(t->hThread);
 
         DetourThread *n = t->pNext;
-        delete t;
+        DetourFree(t);
         t = n;
     }
     s_pPendingThreads = NULL;
@@ -1913,7 +1915,7 @@ typedef ULONG_PTR DETOURS_EIP_TYPE;
         }
 
         DetourOperation *n = o->pNext;
-        delete o;
+        DetourFree(o);
         o = n;
     }
     s_pPendingOperations = NULL;
@@ -1932,7 +1934,7 @@ typedef ULONG_PTR DETOURS_EIP_TYPE;
         ResumeThread(t->hThread);
 
         DetourThread *n = t->pNext;
-        delete t;
+        DetourFree(t);
         t = n;
     }
     s_pPendingThreads = NULL;
@@ -1959,12 +1961,12 @@ LONG WINAPI DetourUpdateThread(_In_ HANDLE hThread)
         return NO_ERROR;
     }
 
-    DetourThread *t = new NOTHROW DetourThread;
+    DetourThread *t = DetourAlloc<DetourThread>();
     if (t == NULL) {
         error = ERROR_NOT_ENOUGH_MEMORY;
       fail:
         if (t != NULL) {
-            delete t;
+            DetourFree(t);
             t = NULL;
         }
         s_nPendingError = error;
@@ -2080,7 +2082,7 @@ LONG WINAPI DetourAttachEx(_Inout_ PVOID *ppPointer,
         *ppRealDetour = pDetour;
     }
 
-    o = new NOTHROW DetourOperation;
+    o = DetourAlloc<DetourOperation>();
     if (o == NULL) {
         error = ERROR_NOT_ENOUGH_MEMORY;
       fail:
@@ -2095,7 +2097,7 @@ LONG WINAPI DetourAttachEx(_Inout_ PVOID *ppPointer,
             }
         }
         if (o != NULL) {
-            delete o;
+            DetourFree(o);
             o = NULL;
         }
         if (ppRealDetour != NULL) {
@@ -2382,7 +2384,7 @@ LONG WINAPI DetourDetach(_Inout_ PVOID *ppPointer,
         return error;
     }
 
-    DetourOperation *o = new NOTHROW DetourOperation;
+    DetourOperation *o = DetourAlloc<DetourOperation>();
     if (o == NULL) {
         error = ERROR_NOT_ENOUGH_MEMORY;
       fail:
@@ -2390,7 +2392,7 @@ LONG WINAPI DetourDetach(_Inout_ PVOID *ppPointer,
         DETOUR_BREAK();
       stop:
         if (o != NULL) {
-            delete o;
+            DetourFree(o);
             o = NULL;
         }
         s_ppPendingError = ppPointer;
@@ -2593,5 +2595,46 @@ BOOL WINAPI DetourAreSameGuid(_In_ REFGUID left, _In_ REFGUID right)
         left.Data4[6] == right.Data4[6] &&
         left.Data4[7] == right.Data4[7];
 }
+
+//////////////////////////////////////////////////////////////////////////////
+//
+
+static HANDLE s_hHeap = NULL;
+
+void DetourDestroyHeap()
+{
+    if (s_hHeap)
+    {
+        HeapDestroy(s_hHeap);
+        s_hHeap = NULL;
+    }
+}
+
+BOOL DetourCreateHeap(BOOL fAutoDestroy)
+{
+    BOOL bResult = FALSE;
+    if (s_hHeap == NULL)
+    {
+        s_hHeap = HeapCreate(0, 0, 0);
+        assert(s_hHeap);
+        if (s_hHeap != NULL)
+        {
+            if (fAutoDestroy)
+            {
+                atexit(DetourDestroyHeap);
+            }
+            bResult = TRUE;
+        }
+    }
+    return bResult;
+}
+
+inline HANDLE DetourGetHeap()
+{
+    assert(s_hHeap);
+    return s_hHeap;
+}
+
+static BOOL s_fAlreadyCreatedDetourHeap = DetourCreateHeap(TRUE);
 
 //  End of File

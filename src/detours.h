@@ -48,6 +48,7 @@
 #include <intsafe.h>
 #pragma warning(pop)
 #endif
+#include <assert.h>
 #include <crtdbg.h>
 
 // Allow Detours to cleanly compile with the MingW toolchain.
@@ -1212,6 +1213,108 @@ BOOL WINAPI DetourAreSameGuid(_In_ REFGUID left, _In_ REFGUID right);
 #ifdef __cplusplus
 }
 #endif // __cplusplus
+
+//////////////////////////////////////////////////////////// Memory management APIs.
+
+inline HANDLE DetourGetHeap();
+
+template<class T>
+T* DetourAlloc()
+{
+    void* p = HeapAlloc(DetourGetHeap(), 0, sizeof(T));
+    assert(p);
+    if (!p)
+    {
+        return NULL;
+    }
+
+    return ::new(p) T;
+}
+
+template<class T, class P1>
+T* DetourAlloc(P1 p1)
+{
+    void* p = HeapAlloc(DetourGetHeap(), 0, sizeof(T));
+    assert(p);
+    if (!p)
+    {
+        return NULL;
+    }
+
+    return ::new(p) T(p1);
+}
+
+template<class T, class P1, class P2>
+T* DetourAlloc(P1 p1, P2 p2)
+{
+    void* p = HeapAlloc(DetourGetHeap(), 0, sizeof(T));
+    assert(p);
+    if (!p)
+    {
+        return NULL;
+    }
+
+    return ::new(p) T(p1, p2);
+}
+
+template<class T>
+void DetourFree(T*& p)
+{
+    size_t MemSize = HeapSize(DetourGetHeap(), 0, p);
+    assert(MemSize == sizeof(T));
+    if (MemSize != sizeof(T))
+    {
+        return;
+    }
+
+    p->~T();
+
+    HeapFree(DetourGetHeap(), 0, p);
+    p = NULL;
+}
+
+template<class T>
+T* DetourAllocArray(size_t _Size)
+{
+    T* p = (T*)HeapAlloc(DetourGetHeap(), 0, sizeof(T) * _Size);
+    assert(p);
+    if (!p)
+    {
+        return NULL;
+    }
+
+    for (size_t i = 0; i < _Size; i++)
+    {
+        ::new(&p[i]) T;
+    }
+
+    return p;
+}
+
+template<class T>
+void DetourFreeArray(T*& p)
+{
+    size_t MemSize = HeapSize(DetourGetHeap(), 0, p);
+    assert(MemSize > 0);
+    if (MemSize == 0)
+    {
+        return;
+    }
+    size_t _Size = MemSize / sizeof(T);
+    assert(_Size > 0);
+    if (_Size == 0)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < _Size; i++)
+    {
+        (&p[i])->~T();
+    }
+
+    HeapFree(DetourGetHeap(), 0, (LPVOID)p);
+    p = NULL;
+}
 
 //////////////////////////////////////////////////////////////////////////////
 

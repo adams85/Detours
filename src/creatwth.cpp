@@ -1153,7 +1153,7 @@ VOID CALLBACK DetourFinishHelperProcess(_In_ HWND,
         goto Cleanup;
     }
 
-    rlpDlls = new NOTHROW LPCSTR [s_pHelper->nDlls];
+    rlpDlls = DetourAllocArray<LPCSTR>(s_pHelper->nDlls);
     cSize = s_pHelper->cb - sizeof(DETOUR_EXE_HELPER);
     for (DWORD n = 0; n < s_pHelper->nDlls; n++) {
         size_t cchDest = 0;
@@ -1177,7 +1177,7 @@ VOID CALLBACK DetourFinishHelperProcess(_In_ HWND,
 
   Cleanup:
     if (rlpDlls != NULL) {
-        delete[] rlpDlls;
+        DetourFreeArray(rlpDlls);
         rlpDlls = NULL;
     }
 
@@ -1251,7 +1251,7 @@ BOOL WINAPI AllocExeHelper(_Out_ PDETOUR_EXE_HELPER *pHelper,
         cSize += (DWORD)cchDest + 1;
     }
 
-    Helper = (PDETOUR_EXE_HELPER) new NOTHROW BYTE[sizeof(DETOUR_EXE_HELPER) + cSize];
+    Helper = (PDETOUR_EXE_HELPER)DetourAllocArray<BYTE>(sizeof(DETOUR_EXE_HELPER) + cSize);
     if (Helper == NULL) {
         goto Cleanup;
     }
@@ -1316,7 +1316,8 @@ BOOL WINAPI AllocExeHelper(_Out_ PDETOUR_EXE_HELPER *pHelper,
 
   Cleanup:
     if (Helper != NULL) {
-        delete[] (PBYTE)Helper;
+        PBYTE helperBytes = (PBYTE)Helper;
+        DetourFreeArray(helperBytes);
         Helper = NULL;
     }
     return Result;
@@ -1326,7 +1327,8 @@ static
 VOID WINAPI FreeExeHelper(PDETOUR_EXE_HELPER *pHelper)
 {
     if (*pHelper != NULL) {
-        delete[] (PBYTE)*pHelper;
+        PBYTE helperBytes = (PBYTE)*pHelper;
+        DetourFreeArray(helperBytes);
         *pHelper = NULL;
     }
 }
