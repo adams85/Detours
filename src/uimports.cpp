@@ -40,7 +40,7 @@ static BOOL UPDATE_IMPORTS_XX(HANDLE hProcess,
 
       finish:
         if (pbNew != NULL) {
-            delete[] pbNew;
+            DetourFreeArray(pbNew);
             pbNew = NULL;
         }
         return fSucceeded;
@@ -178,9 +178,9 @@ static BOOL UPDATE_IMPORTS_XX(HANDLE hProcess,
             goto finish;
         }
     }
-    pbNew = new BYTE [cbNew];
+    pbNew = DetourAllocArray<BYTE>(cbNew);
     if (pbNew == NULL) {
-        DETOUR_TRACE(("new BYTE [cbNew] failed.\n"));
+        DETOUR_TRACE(("DetourAllocArray<BYTE>(cbNew) failed.\n"));
         goto finish;
     }
     ZeroMemory(pbNew, cbNew);
